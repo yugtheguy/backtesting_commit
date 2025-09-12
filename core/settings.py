@@ -26,7 +26,24 @@ SECRET_KEY = 'django-insecure-#s(s#ig@fd%3a8bbq0(kqzw43zh++0im64a6hog&_)e35pe#mb
 DEBUG = True
 
 ALLOWED_HOSTS = []
+# settings.py
+# settings.py
 
+from pathlib import Path
+import os
+import dotenv # Add this import
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Add this line to load the .env file
+dotenv.load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+# Now the rest of your settings.py can access the keys
+# ...
+
+SUPADATA_API_KEY = os.environ.get("SUPADATA_API_KEY")
+HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
 # Application definition
 
@@ -40,6 +57,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'api',
+    'summarizer',
 ]
 
 MIDDLEWARE = [
