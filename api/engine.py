@@ -453,7 +453,35 @@ class HybridBacktester:
     def _calculate_portfolio_value(self) -> float:
         total_positions_value = sum(pos.current_value for pos in self.positions.values())
         return self.current_capital + total_positions_value
+    def suggest_optimizations(self, all_trades: List[Trade], metrics: Dict) -> List[str]:
+        """Provides suggestions for optimizing the strategy based on backtest metrics."""
+        suggestions = []
+        
+        # Rule 1: Check for profitability
+        if metrics['total_return_pct'] < 0:
+            suggestions.append("The strategy was not profitable. Consider adjusting your entry or exit conditions.")
 
+        # Rule 2: Check for a low win rate, which might indicate poor entry signals
+        if metrics['win_rate_pct'] < 40.0 and metrics['total_trades'] > 10:
+            suggestions.append("A low win rate suggests that entry signals may be unreliable. Try adding a second indicator as a confirmation signal.")
+        
+        # Rule 3: Check for high drawdown, suggesting poor risk management
+        if metrics['max_drawdown_pct'] < -10.0:
+            # Check if a stop-loss was used at all (this logic is simplified)
+            has_risk_management = any(t.risk_management for t in all_trades)
+            if not has_risk_management:
+                suggestions.append("Your strategy has a high maximum drawdown. Implementing a stop-loss order could significantly reduce risk.")
+            else:
+                suggestions.append("The current risk management settings may not be effective. Consider adjusting your stop-loss or take-profit levels.")
+
+        # Rule 4: Check for a high number of trades, which can lead to over-trading and high fees
+        if metrics['total_trades'] > 50:
+            suggestions.append("The strategy generated a high number of trades. Using a longer period for your indicators could reduce noise and trading costs.")
+        
+        if not suggestions:
+            suggestions.append("The strategy seems reasonable. You could try optimizing indicator periods for better results.")
+            
+        return suggestions
     def _generate_results(self) -> Dict[str, Any]:
         """Generate comprehensive backtest results"""
         # Close any remaining open positions
@@ -491,11 +519,16 @@ class HybridBacktester:
         returns = equity_series.pct_change().dropna() if len(equity_series) > 1 else pd.Series([0])
         metrics = self._calculate_metrics(self.trades, equity_series, returns)
         
+        # NEW: Generate optimization suggestions
+        suggestions = self.suggest_optimizations(self.trades, metrics)
+        
         return {
             'metrics': metrics,
             'equity_curve': list(zip([d.isoformat() for d in self.dates], self.equity_curve)) if self.dates else [],
-            'trades': trades_as_dicts
+            'trades': trades_as_dicts,
+            'suggestions': suggestions # Add suggestions to the results dictionary
         }
+
 
     def _calculate_metrics(self, all_trades: List[Trade], equity_series: pd.Series, returns: pd.Series) -> Dict[str, Any]:
         """Calculate comprehensive performance metrics"""

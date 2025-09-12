@@ -76,6 +76,7 @@ class BacktestAPIView(APIView):
             # 5. Generate the interactive plot HTML
             try:
                 plot_html = HybridVisualizationEngine.create_single_interactive_plot(results, data)
+                print(plot_html)
                 print("Plot generated successfully")
             except Exception as e:
                 print(f"Plot generation error: {str(e)}")
@@ -83,8 +84,10 @@ class BacktestAPIView(APIView):
             
             # 6. Construct and send the final response
             final_response = {
-                'metrics': results.get('metrics', {}),
-                'plot_html': plot_html,
+            'metrics': results.get('metrics', {}),
+            'plot_html': plot_html,
+            'suggestions': results.get('suggestions', []), # Pass the suggestions from the results
+            
             }
             return Response(final_response, status=status.HTTP_200_OK)
 
