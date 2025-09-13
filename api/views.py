@@ -9,8 +9,9 @@ from .engine import UniversalStrategyParser, HybridBacktester, HybridVisualizati
 import uuid
 import threading
 from django.shortcuts import get_object_or_404
-from .models import TuningJob, TuningRun
-from .tuner import TuningEngine  # Import from tuner.py, don't redefine here!
+from .models import TuningJob, TuningRun, ChatSession, ChatMessage
+from .tuner import TuningEngine
+from .chatbot import get_gemini_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class BacktestAPIView(APIView):
     API endpoint to run a backtest.
     Accepts a POST request with a 'strategy' JSON object.
     """
+    # ... (the rest of this class remains the same)
     def post(self, request, *args, **kwargs):
         try:
             # 1. Get Strategy JSON from request body
@@ -102,23 +104,13 @@ class BacktestAPIView(APIView):
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
 
 class TuningAPIView(APIView):
     """API endpoints for parameter tuning functionality"""
-    
+    # ... (the rest of this class remains the same)
     def post(self, request):
         """
         Start a new parameter tuning job
-        
-        Expected payload:
-        {
-            "strategy_spec": {...},  # Base strategy configuration
-            "param_space": {...},    # Parameter ranges to optimize
-            "search_type": "grid|random",
-            "budget": 50,           # Max number of combinations
-            "objective": "sharpe_ratio"  # Metric to optimize
-        }
         """
         try:
             # Validate required fields
@@ -182,29 +174,35 @@ class TuningAPIView(APIView):
     def get(self, request):
         """
         Handle GET requests for tuning status and results
+        Query parameters:
+        - job_id: ID of the tuning job (required)
+        - top_n: Number of top results (optional, for results)
+        
+        The action is determined by the URL path:
+        - /api/tuner/status/ -> get status
+        - /api/tuner/results/ -> get results
         """
         job_id = request.query_params.get('job_id')
-
+        
         if not job_id:
             return Response(
                 {'error': 'job_id parameter is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        # Correctly use get_object_or_404 without catching the exception here
-        job = get_object_or_404(TuningJob, job_id=job_id)
-
+        
         try:
+            job = get_object_or_404(TuningJob, job_id=job_id)
+            
             # Determine action based on URL path
             if 'status' in request.path:
                 return self._get_job_status(job)
             elif 'results' in request.path:
                 return self._get_job_results(job, request)
             else:
+                # Default behavior if neither status nor results in path
                 return self._get_job_status(job)
-
+                
         except Exception as e:
-            # This block will now only catch true server-side errors, not missing objects
             logger.error(f"Error handling GET request: {str(e)}")
             return Response(
                 {'error': str(e)}, 
@@ -284,3 +282,49 @@ class TuningAPIView(APIView):
                 return False
         
         return True
+
+
+class ChatAPIView(APIView):
+    """
+    API endpoint for the domain-specific chatbot.
+    Handles conversation with context via the Gemini API.
+    """
+    def post(self, request, *args, **kwargs):
+        message = request.data.get('message')
+        session_id = request.data.get('session_id')
+        
+        if not message:
+            return Response(
+                {'error': 'Message field is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            # Handle new or existing session
+            if session_id:
+                session = get_object_or_404(ChatSession, session_id=session_id)
+            else:
+                session_id = str(uuid.uuid4())
+                session = ChatSession.objects.create(session_id=session_id)
+            
+            # Fetch chat history for context
+            chat_history = list(session.messages.all())
+            
+            # Get response from Gemini
+            bot_message_text = get_gemini_response(message, chat_history)
+            
+            # Save new messages to the database
+            ChatMessage.objects.create(session=session, sender='user', message_text=message)
+            ChatMessage.objects.create(session=session, sender='bot', message_text=bot_message_text)
+            
+            return Response({
+                'message': bot_message_text,
+                'session_id': session.session_id
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in ChatAPIView: {e}")
+            return Response(
+                {'error': f'An unexpected error occurred: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

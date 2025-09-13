@@ -55,3 +55,26 @@ class TuningRun(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+
+
+
+class ChatSession(models.Model):
+    """Represents a single conversation with the chatbot."""
+    session_id = models.CharField(max_length=100, unique=True, primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Chat Session: {self.session_id}"
+
+class ChatMessage(models.Model):
+    """Stores a single message within a chat session."""
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
+    sender = models.CharField(max_length=10) # 'user' or 'bot'
+    message_text = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M')}] {self.sender}: {self.message_text[:50]}..."

@@ -44,6 +44,8 @@ dotenv.load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 SUPADATA_API_KEY = os.environ.get("SUPADATA_API_KEY")
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
+# NEW: Gemini API key for the chatbot
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # Application definition
 

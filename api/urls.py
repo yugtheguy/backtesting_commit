@@ -1,10 +1,13 @@
 from django.urls import path
 from .views import BacktestAPIView
 from .views import TuningAPIView
+from .views import ChatAPIView
+
 
 urlpatterns = [
     path('backtest/', BacktestAPIView.as_view(), name='backtest'),
     path('tuner/run/', TuningAPIView.as_view(), name='tuner-run'),
     path('tuner/status/', TuningAPIView.as_view(), name='tuner-status'),
     path('tuner/results/', TuningAPIView.as_view(), name='tuner-results'),
+    path('chatbot/', ChatAPIView.as_view(), name='chatbot'),
 ]
