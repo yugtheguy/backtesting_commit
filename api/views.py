@@ -182,35 +182,29 @@ class TuningAPIView(APIView):
     def get(self, request):
         """
         Handle GET requests for tuning status and results
-        Query parameters:
-        - job_id: ID of the tuning job (required)
-        - top_n: Number of top results (optional, for results)
-        
-        The action is determined by the URL path:
-        - /api/tuner/status/ -> get status
-        - /api/tuner/results/ -> get results
         """
         job_id = request.query_params.get('job_id')
-        
+
         if not job_id:
             return Response(
                 {'error': 'job_id parameter is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+        # Correctly use get_object_or_404 without catching the exception here
+        job = get_object_or_404(TuningJob, job_id=job_id)
+
         try:
-            job = get_object_or_404(TuningJob, job_id=job_id)
-            
             # Determine action based on URL path
             if 'status' in request.path:
                 return self._get_job_status(job)
             elif 'results' in request.path:
                 return self._get_job_results(job, request)
             else:
-                # Default behavior if neither status nor results in path
                 return self._get_job_status(job)
-                
+
         except Exception as e:
+            # This block will now only catch true server-side errors, not missing objects
             logger.error(f"Error handling GET request: {str(e)}")
             return Response(
                 {'error': str(e)}, 

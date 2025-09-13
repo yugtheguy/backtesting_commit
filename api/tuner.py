@@ -98,55 +98,50 @@ class TuningEngine:
         
         return combinations
     
+    # api/tuner.py
+# ... (rest of the file remains the same)
+
     def run_tuner(self, job_id: str):
-        """
-        Main method to run the parameter tuning process
-        
-        Args:
-            job_id: ID of the tuning job to process
-        """
+        """Main method to run the parameter tuning process"""
         try:
-            # Get the tuning job
             job = TuningJob.objects.get(job_id=job_id)
             job.status = 'running'
             job.save()
-            
-            # Generate parameter combinations
+
+            # Load data once for the entire job
+            data = pd.read_csv('aapl_data.csv') #
+
             combinations = self.generate_parameter_combinations(
                 job.param_space, job.search_type, job.budget
             )
-            
+
             job.total_runs = len(combinations)
             job.save()
-            
+
             logger.info(f"Starting tuning job {job_id} with {len(combinations)} combinations")
-            
-            # Initialize backtester
+
             self.backtester = HybridBacktester()
-            
-            # Process each parameter combination
+
             for i, params in enumerate(combinations):
                 try:
-                    self._run_single_backtest(job, params)
-                    
-                    # Update progress
+                    # Pass the data to the single backtest runner
+                    self._run_single_backtest(job, params, data)
+
                     job.progress = i + 1
                     job.save()
-                    
+
                     logger.info(f"Completed run {i+1}/{len(combinations)} for job {job_id}")
-                    
+
                 except Exception as e:
                     logger.error(f"Error in run {i+1} for job {job_id}: {str(e)}")
-                    # Continue with next parameter combination
                     continue
-            
-            # Mark job as completed
+
             job.status = 'completed'
             job.completed_at = timezone.now()
             job.save()
-            
+
             logger.info(f"Tuning job {job_id} completed successfully")
-            
+
         except Exception as e:
             logger.error(f"Error in tuning job {job_id}: {str(e)}")
             job = TuningJob.objects.get(job_id=job_id)
@@ -154,22 +149,33 @@ class TuningEngine:
             job.error_message = str(e)
             job.save()
             raise
-    
-    def _run_single_backtest(self, job: TuningJob, params: Dict):
-        """Run a single backtest with given parameters"""
+
+    def _run_single_backtest(self, job: TuningJob, params: Dict, data: pd.DataFrame):
+        """Run a single backtest with given parameters and data"""
         start_time = time.time()
-        
+
         try:
-            # Merge parameters with strategy spec
+            # Create a full strategy config by merging the base spec and the parameters
             strategy_config = job.strategy_spec.copy()
-            strategy_config.update(params)
-            
-            # Run backtest
-            results = self.backtester.run_backtest(strategy_config)
-            
+
+            # Assuming params are top-level and need to be merged into a specific block,
+            # or directly passed. Let's assume for now they update the strategy_config.
+            # You might need to adjust this based on your front-end schema.
+            # Example: strategy_config['params'].update(params)
+
+            # For simplicity, let's assume the params are for indicators and
+            # need to be applied directly to the nodes of the strategy_spec
+            updated_strategy_spec = self._apply_params_to_strategy(strategy_config, params)
+
+            # Parse the updated strategy
+            parser = UniversalStrategyParser(updated_strategy_spec)
+            parsed_strategy = parser.parse()
+
+            # Now run the backtest with the parsed strategy and data
+            results = self.backtester.run_backtest(data, parsed_strategy)
+
             execution_time = time.time() - start_time
-            
-            # Create TuningRun record
+
             TuningRun.objects.create(
                 job=job,
                 params=params,
@@ -178,9 +184,8 @@ class TuningEngine:
                 trades_data=results.get('trades', []),
                 execution_time=execution_time
             )
-            
+
         except Exception as e:
-            # Create failed run record
             TuningRun.objects.create(
                 job=job,
                 params=params,
@@ -190,6 +195,17 @@ class TuningEngine:
                 execution_time=time.time() - start_time
             )
             raise
+
+    def _apply_params_to_strategy(self, strategy_spec: Dict, params: Dict) -> Dict:
+        """Helper to apply parameters to the strategy spec, this is a placeholder."""
+        # This function would need to be implemented to correctly
+        # find and update the right nodes in the strategy_spec's
+        # 'nodes' list.
+        # For an MVP, you might have a simpler strategy format where
+        # params are at the top level and this step is not needed.
+        return strategy_spec
+
+    # ... (rest of the file remains the same)
     
     def get_best_results(self, job_id: str, top_n: int = 10, objective: str = None) -> List[Dict]:
         """
