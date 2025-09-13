@@ -8,12 +8,9 @@ from rest_framework import status
 from .engine import UniversalStrategyParser, HybridBacktester, HybridVisualizationEngine
 import uuid
 import threading
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from django.shortcuts import get_object_or_404
 from .models import TuningJob, TuningRun
-from .tuner import TuningEngine
+from .tuner import TuningEngine  # Import from tuner.py, don't redefine here!
 import logging
 
 logger = logging.getLogger(__name__)
@@ -87,7 +84,6 @@ class BacktestAPIView(APIView):
             # 5. Generate the interactive plot HTML
             try:
                 plot_html = HybridVisualizationEngine.create_single_interactive_plot(results, data)
-                print(plot_html)
                 print("Plot generated successfully")
             except Exception as e:
                 print(f"Plot generation error: {str(e)}")
@@ -95,10 +91,9 @@ class BacktestAPIView(APIView):
             
             # 6. Construct and send the final response
             final_response = {
-            'metrics': results.get('metrics', {}),
-            'plot_html': plot_html,
-            'suggestions': results.get('suggestions', []), # Pass the suggestions from the results
-            
+                'metrics': results.get('metrics', {}),
+                'plot_html': plot_html,
+                'suggestions': results.get('suggestions', []),
             }
             return Response(final_response, status=status.HTTP_200_OK)
 

@@ -4,10 +4,13 @@ import itertools
 import random
 import time
 import logging
+import pandas as pd
 from typing import Dict, List, Any, Union
 from django.utils import timezone
 from .models import TuningJob, TuningRun
-from .engine import HybridBacktester
+from .engine import HybridBacktester, UniversalStrategyParser
+
+
 
 logger = logging.getLogger(__name__)
 
